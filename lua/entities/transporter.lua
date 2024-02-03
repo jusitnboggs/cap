@@ -25,6 +25,8 @@ AddCSLuaFile();
 --include("entities/event_horizon/modules/teleport.lua"); -- FIXME: Move all teleportation code of the eventhorizon to /stargate/server/teleport.lua. Then create a teleportation class
 
 local snd = {Sound("tech/asgard_teleport.mp3"),Sound("tech/asgard_beamup.mp3")};
+local COST_OFFSET = 5000
+local COST_DIST_MULT = 10
 
 --################### Init @PiX06,aVoN
 function ENT:Initialize()
@@ -36,9 +38,10 @@ function ENT:Initialize()
 	self.Destination = Vector(0,0,0);
 	self.TeleportEverything = false;
 	self.Exceptions = {}; -- Used internal
+	self.Radius = 60;
 	self:AddResource("energy",1);
-	self:CreateWireInputs("Origin [VECTOR]","Origin X","Origin Y","Origin Z","Dest [VECTOR]","Dest X","Dest Y","Dest Z","Teleport Everything","Send","Retrieve","Disable Use");
-	self:CreateWireOutputs("Teleport Distance","Targets at Origin","Targets at Destination");
+	self:CreateWireInputs("Origin [VECTOR]","Origin X","Origin Y","Origin Z","Dest [VECTOR]","Dest X","Dest Y","Dest Z","Teleport Everything","Send","Retrieve","Disable Use","Radius");
+	self:CreateWireOutputs("Teleport Distance","Targets at Origin","Targets at Destination","Energy Cost per Target");
 	self.Disallowed = {};
 	for _,v in pairs(StarGate.CFG:Get("asgard_transporter","classnames",""):TrimExplode(",")) do
 		self.Disallowed[v:lower()] = true;
@@ -76,14 +79,17 @@ function ENT:Think()
 	if (not IsValid(self)) then return end
 	local orig,dest = 0,0;
 	local dist = 0;
+	local cost = COST_OFFSET;
 	if(self.Origin ~= self.Destination) then
 		orig = table.Count(self:FindObjects(self.Origin,true));
 		dest = table.Count(self:FindObjects(self.Destination,true));
 		dist = self.Destination:Distance(self.Origin);
+		cost = math.Round(dist*COST_DIST_MULT+self.Radius/60+COST_OFFSET);
 	end
 	self:SetWire("Targets at Origin",orig);
 	self:SetWire("Targets at Destination",dest);
 	self:SetWire("Teleport Distance",dist);
+	self:SetWire("Energy Cost per Target",cost);
 	--self:SetOverlayText("Asgard Transporter\nTeleport Distance: "..dist);
 	self.Entity:NextThink(CurTime()+0.5);
 	return true;
@@ -190,6 +196,10 @@ function ENT:TriggerInput(k,v)
 	elseif(k == "Teleport Everything") then
 		self.TeleportEverything = b;
 		self:SetWire("Teleport Everything",b);
+	elseif(k == "Radius") then
+		if(v > 0) then
+			self.Radius = math.Clamp(v,10,3000);
+		end
 	end
 end
 
